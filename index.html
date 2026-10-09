@@ -118,19 +118,35 @@
     <button id="startBtn" onclick="startTest()">Start Test</button>
   </div>
 
-  <script>
-    // Point this to your Render URL once deployed!
-    // For local testing, keep http://localhost:3000
+<script>
+    // MUST match your Render domain EXACTLY with https://
     const SERVER_URL = 'https://speedpulse-0p3z.onrender.com/';
     const THREAD_COUNT = 4;
 
-    function startTest() {
+    async function startTest() {
       const display = document.getElementById('speedDisplay');
       const status = document.getElementById('statusText');
       const btn = document.getElementById('startBtn');
 
       btn.disabled = true;
-      status.innerText = 'Connecting to multi-thread workers...';
+      status.innerText = 'Waking up server (this may take up to 30s on free tier)...';
+
+      // 1. Warmup / Ping check
+      try {
+        const pingStart = performance.now();
+        const pingRes = await fetch(`${SERVER_URL}/ping`, { mode: 'cors', cache: 'no-store' });
+        if (!pingRes.ok && pingRes.status !== 204) throw new Error('Server returned non-ok status');
+        
+        const latency = Math.round(performance.now() - pingStart);
+        status.innerText = `Server connected (${latency}ms). Starting download...`;
+      } catch (err) {
+        console.error('Ping failed:', err);
+        status.innerText = 'Could not connect to server. Check SERVER_URL or CORS.';
+        btn.disabled = false;
+        return;
+      }
+
+      // 2. Launch workers once server is confirmed active
       let threadSpeeds = new Array(THREAD_COUNT).fill(0);
       let activeWorkers = 0;
 
@@ -147,17 +163,22 @@
               const totalSpeed = threadSpeeds.reduce((a, b) => a + b, 0).toFixed(2);
               display.innerText = totalSpeed;
               status.innerText = 'Testing download speed...';
+            } else if (e.data.type === 'error') {
+              console.error(`Worker ${i} error:`, e.data.message);
+              status.innerText = 'Download failed on worker fetch.';
+              btn.disabled = false;
             }
           };
 
           worker.onerror = (err) => {
-            console.error('Worker error:', err);
-            status.innerText = 'Worker failed. Check console or backend URL.';
+            console.error(`Worker ${i} script error:`, err);
+            status.innerText = 'Worker error. Verify worker.js path.';
             btn.disabled = false;
           };
 
         } catch (err) {
-          status.innerText = 'Cannot load worker.js directly from file system. Serve via server or deploy to GitHub!';
+          console.error('Failed to instantiate Web Worker:', err);
+          status.innerText = 'Browser blocked Web Worker creation.';
           btn.disabled = false;
           break;
         }
