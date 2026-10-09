@@ -118,15 +118,15 @@
     <button id="startBtn" onclick="startTest()">Start Test</button>
   </div>
 
-<script>
-    // MUST match your Render domain EXACTLY with https://
-    const SERVER_URL = 'https://speedpulse-0p3z.onrender.com/';
+  <script>
+    const SERVER_URL = 'https://speedpulse-0p3z.onrender.com';
     const THREAD_COUNT = 4;
 
     async function startTest() {
       const display = document.getElementById('speedDisplay');
       const status = document.getElementById('statusText');
       const btn = document.getElementById('startBtn');
+      const baseUrl = SERVER_URL.replace(/\/+$/, '');
 
       btn.disabled = true;
       status.innerText = 'Waking up server (this may take up to 30s on free tier)...';
@@ -134,9 +134,9 @@
       // 1. Warmup / Ping check
       try {
         const pingStart = performance.now();
-        const pingRes = await fetch(`${SERVER_URL}/ping`, { mode: 'cors', cache: 'no-store' });
+        const pingRes = await fetch(`${baseUrl}/ping`, { mode: 'cors', cache: 'no-store' });
         if (!pingRes.ok && pingRes.status !== 204) throw new Error('Server returned non-ok status');
-        
+
         const latency = Math.round(performance.now() - pingStart);
         status.innerText = `Server connected (${latency}ms). Starting download...`;
       } catch (err) {
@@ -148,14 +148,13 @@
 
       // 2. Launch workers once server is confirmed active
       let threadSpeeds = new Array(THREAD_COUNT).fill(0);
-      let activeWorkers = 0;
 
       for (let i = 0; i < THREAD_COUNT; i++) {
         try {
           const worker = new Worker('worker.js');
-          activeWorkers++;
 
-          worker.postMessage({ type: 'download', serverUrl: SERVER_URL });
+          // Pass sanitized baseUrl
+          worker.postMessage({ type: 'download', serverUrl: baseUrl });
 
           worker.onmessage = (e) => {
             if (e.data.type === 'progress') {

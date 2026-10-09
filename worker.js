@@ -6,11 +6,12 @@ self.onmessage = async (e) => {
     let receivedBytes = 0;
 
     try {
-      // mode: 'cors' is required for mobile browsers and Brave Shields
       const response = await fetch(`${serverUrl}/download?t=${Date.now()}`, {
         mode: 'cors',
         cache: 'no-store'
       });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const reader = response.body.getReader();
 
