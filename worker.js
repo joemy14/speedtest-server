@@ -3,25 +3,31 @@ self.onmessage = async (e) => {
 
   if (type === 'download') {
     const startTime = performance.now();
-    let bytesReceived = 0;
+    let receivedBytes = 0;
 
-    // Fetch stream without browser caching
-    const response = await fetch(`${serverUrl}/download?t=${Math.random()}`);
-    const reader = response.body.getReader();
+    try {
+      // mode: 'cors' is required for mobile browsers and Brave Shields
+      const response = await fetch(`${serverUrl}/download?t=${Date.now()}`, {
+        mode: 'cors',
+        cache: 'no-store'
+      });
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      const reader = response.body.getReader();
 
-      bytesReceived += value.byteLength;
-      const durationInSeconds = (performance.now() - startTime) / 1000;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      // Ignore TCP slow-start (first 0.5s)
-      if (durationInSeconds > 0.5) {
-        const mbps = ((bytesReceived * 8) / (durationInSeconds * 1_000_000)).toFixed(2);
-        self.postMessage({ type: 'progress', mbps });
+        receivedBytes += value.byteLength;
+        const durationSec = (performance.now() - startTime) / 1000;
+
+        if (durationSec > 0.2) {
+          const mbps = ((receivedBytes * 8) / (durationSec * 1024 * 1024)).toFixed(2);
+          self.postMessage({ type: 'progress', mbps });
+        }
       }
+    } catch (err) {
+      self.postMessage({ type: 'error', message: err.message });
     }
-    self.postMessage({ type: 'complete' });
   }
 };
