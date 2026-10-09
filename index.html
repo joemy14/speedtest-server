@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Speed Pulse — Network Performance</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --border: #e2e8f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 48px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 36px;
+    }
+
+    .gauge-card {
+      background: #f1f5f9;
+      border-radius: 16px;
+      padding: 32px 16px;
+      margin-bottom: 32px;
+    }
+
+    .speed-value {
+      font-size: 4rem;
+      font-weight: 700;
+      letter-spacing: -2px;
+      color: var(--text-main);
+      line-height: 1;
+    }
+
+    .unit {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 8px;
+    }
+
+    .status-text {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      min-height: 20px;
+    }
+
+    button {
+      background-color: var(--accent);
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      padding: 16px 32px;
+      font-size: 1rem;
+      font-weight: 600;
+      width: 100%;
+      cursor: pointer;
+      transition: background-color 0.2s ease, transform 0.1s ease;
+    }
+
+    button:hover { background-color: var(--accent-hover); }
+    button:active { transform: scale(0.98); }
+    button:disabled { background-color: #94a3b8; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Speed Pulse</h1>
+    <p class="subtitle">Real-time unthrottled throughput test</p>
+
+    <div class="gauge-card">
+      <div class="speed-value" id="speedDisplay">0.00</div>
+      <div class="unit">Mbps Download</div>
+    </div>
+
+    <div class="status-text" id="statusText">Ready to measure</div>
+
+    <button id="startBtn" onclick="startTest()">Start Test</button>
+  </div>
+
+  <script>
+    // Point this to your Render URL once deployed!
+    // For local testing, keep http://localhost:3000
+    const SERVER_URL = 'http://localhost:3000';
+    const THREAD_COUNT = 4;
+
+    function startTest() {
+      const display = document.getElementById('speedDisplay');
+      const status = document.getElementById('statusText');
+      const btn = document.getElementById('startBtn');
+
+      btn.disabled = true;
+      status.innerText = 'Connecting to multi-thread workers...';
+      let threadSpeeds = new Array(THREAD_COUNT).fill(0);
+      let activeWorkers = 0;
+
+      for (let i = 0; i < THREAD_COUNT; i++) {
+        try {
+          const worker = new Worker('worker.js');
+          activeWorkers++;
+
+          worker.postMessage({ type: 'download', serverUrl: SERVER_URL });
+
+          worker.onmessage = (e) => {
+            if (e.data.type === 'progress') {
+              threadSpeeds[i] = parseFloat(e.data.mbps);
+              const totalSpeed = threadSpeeds.reduce((a, b) => a + b, 0).toFixed(2);
+              display.innerText = totalSpeed;
+              status.innerText = 'Testing download speed...';
+            }
+          };
+
+          worker.onerror = (err) => {
+            console.error('Worker error:', err);
+            status.innerText = 'Worker failed. Check console or backend URL.';
+            btn.disabled = false;
+          };
+
+        } catch (err) {
+          status.innerText = 'Cannot load worker.js directly from file system. Serve via server or deploy to GitHub!';
+          btn.disabled = false;
+          break;
+        }
+      }
+    }
+  </script>
+</body>
+</html>
